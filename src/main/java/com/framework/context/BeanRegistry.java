@@ -10,27 +10,27 @@ public class BeanRegistry {
         this.registeredBeans = registeredBeans;
     }
 
-    public Class<?> encontrarImplementacion(Class<?> claseSolicitada) {
-        List<Class<?>> candidatas = registeredBeans.stream()
-                .filter(clase -> !clase.isInterface() && claseSolicitada.isAssignableFrom(clase))
+    public Class<?> findImplementation(Class<?> interfaceClass) {
+        List<Class<?>> candidates = registeredBeans.stream()
+                .filter(clase -> !clase.isInterface() && interfaceClass.isAssignableFrom(clase))
                 .toList();
 
-        if(candidatas.isEmpty()) {
-            throw new RuntimeException("No se encontró ninguna implementación para la clase solicitada: " + claseSolicitada.getName());
-        } else if(candidatas.size() > 1) {
-            throw new RuntimeException("Se encontraron múltiples implementaciones para la clase solicitada: " + claseSolicitada.getName());
+        if(candidates.isEmpty()) {
+            throw new RuntimeException("No se encontró ninguna implementación para la clase solicitada: " + interfaceClass.getName());
+        } else if(candidates.size() > 1) {
+            throw new RuntimeException("Se encontraron múltiples implementaciones para la clase solicitada: " + interfaceClass.getName());
         } else {
-            return candidatas.get(0);
+            return candidates.get(0);
         }
 
     }
 
 
-    public Class<?> encontrarClasePorNombre(String nombreClase) {
+    public Class<?> findClassByName(String className) {
         return registeredBeans.stream()
-                .filter(clase -> clase.getSimpleName().equals(nombreClase))
+                .filter(clase -> clase.getSimpleName().equals(className))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("No se encontró ninguna clase con el nombre: " + nombreClase));
+                .orElseThrow(() -> new RuntimeException("No se encontró ninguna clase con el nombre: " + className));
     }
 
 }

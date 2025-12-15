@@ -1,17 +1,32 @@
 package com.mi.app.service;
 
+import com.framework.annotations.Component;
+import com.framework.annotations.PostConstruct;
+import com.framework.annotations.Value;
 import com.mi.app.repository.IUserRepository;
 
+@Component
 public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
+    private final String appName;
 
-    public UserServiceImpl(IUserRepository userRepository) {
+    public UserServiceImpl(IUserRepository userRepository, @Value("app.nombre") String appName) {
         this.userRepository = userRepository;
+        this.appName = appName;
     }
+    @PostConstruct
+    public void init() {
+        System.out.println(">>> 2. PostConstruct: Inicializando lógica de negocio...");
 
+        if (appName == null || appName.isEmpty()) {
+            throw new RuntimeException("El nombre de la app no se cargó correctamente");
+        }
+
+        System.out.println(">>> Sistema listo: " + appName);
+    }
     @Override
     public String getUserInfo() {
-        return userRepository.getUserById();
+        return userRepository.getUser();
     }
 }

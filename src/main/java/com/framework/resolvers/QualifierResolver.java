@@ -23,7 +23,7 @@ public class QualifierResolver implements ArgumentResolver{
     @Override
     public Object resolve(Parameter parameter) {
        String nombre = parameter.getAnnotation(Qualifier.class).value();
-       Class<?> tipo = beanRegistry.encontrarClasePorNombre(nombre);
+       Class<?> tipo = beanRegistry.findClassByName(nombre);
        return applicationContext.getBean(tipo);
     }
 }

@@ -6,6 +6,7 @@ import com.framework.resolvers.ArgumentResolver;
 import com.framework.resolvers.QualifierResolver;
 import com.framework.resolvers.TypeResolver;
 import com.framework.resolvers.ValueResolver;
+import com.framework.scanners.ComponentScanner;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -18,46 +19,48 @@ public class MiniSpringContext implements ApplicationContext{
     private final Map<Class<?>, Object> singletonCache = new HashMap<Class<?>, Object>();
     private final List<ArgumentResolver> resolvers = new ArrayList<>();
 
-    public MiniSpringContext(PropertySource config, List<Class<?>> clases) {
+    public MiniSpringContext(PropertySource config, String basePackage){
         this.config = config;
-        this.registry = new BeanRegistry(clases);
+        ComponentScanner scanner = new ComponentScanner();
+        List<Class<?>> classes = scanner.scan(basePackage);
+        this.registry = new BeanRegistry(classes);
         this.resolvers.add(new ValueResolver(this.config));
         this.resolvers.add(new QualifierResolver(this.registry, this));
         this.resolvers.add(new TypeResolver(this));
     }
 
     @Override
-    public <T> T getBean(Class<T> claseSolicitada) {
+    public <T> T getBean(Class<T> type) {
 
         try {
-            Class<?> claseImpl = registry.encontrarImplementacion(claseSolicitada);
-            if(singletonCache.containsKey(claseImpl)){
-                return (T) singletonCache.get(claseImpl);
+            Class<?> implementationClass = registry.findImplementation(type);
+            if(singletonCache.containsKey(implementationClass)){
+                return (T) singletonCache.get(implementationClass);
             }
 
-            T instancia = crearInstancia(claseImpl);
+            T instance = createInstance(implementationClass);
 
-            singletonCache.put(claseImpl, instancia);
+            singletonCache.put(implementationClass, instance);
 
-            return instancia;
+            return instance;
 
         }catch (Exception e) {
-            throw new RuntimeException("Error creando bean: " + claseSolicitada.getSimpleName(), e);
+            throw new RuntimeException("Error creando bean: " + type.getSimpleName(), e);
         }
 
     }
-    private <T> T crearInstancia(Class<?> claseConcreta) throws Exception {
-        Constructor<?> constructor = claseConcreta.getDeclaredConstructors()[0];
+    private <T> T createInstance(Class<?> concreteClass) throws Exception {
+        Constructor<?> constructor = concreteClass.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
 
-        Object[] argumentos = resolverArgumentos(constructor);
+        Object[] arguments = resolveArguments(constructor);
 
-        T instancia = (T) constructor.newInstance(argumentos);
-        inicializarBean(instancia);
-        return instancia;
+        T instance = (T) constructor.newInstance(arguments);
+        initializeBean(instance);
+        return instance;
 
     }
-    private Object[] resolverArgumentos(Constructor<?> constructor) {
+    private Object[] resolveArguments(Constructor<?> constructor) {
         return Arrays.stream(constructor.getParameters())
                 .map(this::resolveSingleParameter)
                 .toArray();
@@ -72,11 +75,11 @@ public class MiniSpringContext implements ApplicationContext{
         throw new RuntimeException("No se pudo resolver el parámetro: " + p.getName());
     }
 
-    private void inicializarBean(Object instancia) throws Exception {
-        for (Method m : instancia.getClass().getDeclaredMethods()) {
+    private void initializeBean(Object bean) throws Exception {
+        for (Method m : bean.getClass().getDeclaredMethods()) {
             if (m.isAnnotationPresent(PostConstruct.class)) {
                 m.setAccessible(true);
-                m.invoke(instancia);
+                m.invoke(bean);
             }
         }
     }
