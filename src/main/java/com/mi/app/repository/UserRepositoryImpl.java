@@ -1,8 +1,9 @@
 package com.mi.app.repository;
 
 import com.framework.annotations.Component;
+import com.framework.annotations.Repository;
 
-@Component
+@Repository
 public class UserRepositoryImpl implements IUserRepository {
 
     @Override

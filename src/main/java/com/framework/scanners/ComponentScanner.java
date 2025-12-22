@@ -3,6 +3,7 @@ package com.framework.scanners;
 import com.framework.annotations.Component;
 
 import java.io.File;
+import java.lang.annotation.Annotation;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,6 +76,18 @@ public class ComponentScanner {
 
 
       private boolean isComponent(Class<?> classes){
-          return classes.isAnnotationPresent(Component.class);
+
+        if(classes.isAnnotationPresent(Component.class)){
+            return true;
+        }
+
+        for(Annotation annotation : classes.getAnnotations()){
+            if(annotation.annotationType().isAnnotationPresent(Component.class)){
+                return true;
+            }
+
+        }
+
+          return false;
       }
 }

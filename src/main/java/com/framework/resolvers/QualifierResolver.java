@@ -1,18 +1,18 @@
 package com.framework.resolvers;
 
 import com.framework.annotations.Qualifier;
-import com.framework.context.ApplicationContext;
 import com.framework.context.BeanRegistry;
+import com.framework.context.SimpleBeanFactory;
 
 import java.lang.reflect.Parameter;
 
 public class QualifierResolver implements ArgumentResolver{
    private final BeanRegistry beanRegistry;
-   private final ApplicationContext applicationContext;
+   private final SimpleBeanFactory simpleBeanFactory;
 
-   public QualifierResolver(BeanRegistry beanRegistry, ApplicationContext applicationContext) {
+   public QualifierResolver(BeanRegistry beanRegistry, SimpleBeanFactory simpleBeanFactory) {
          this.beanRegistry = beanRegistry;
-         this.applicationContext = applicationContext;
+         this.simpleBeanFactory = simpleBeanFactory;
    }
 
     @Override
@@ -22,8 +22,9 @@ public class QualifierResolver implements ArgumentResolver{
 
     @Override
     public Object resolve(Parameter parameter) {
+
        String nombre = parameter.getAnnotation(Qualifier.class).value();
        Class<?> tipo = beanRegistry.findClassByName(nombre);
-       return applicationContext.getBean(tipo);
+       return simpleBeanFactory.getBean(tipo);
     }
 }

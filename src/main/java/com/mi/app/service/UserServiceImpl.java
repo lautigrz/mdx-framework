@@ -2,10 +2,11 @@ package com.mi.app.service;
 
 import com.framework.annotations.Component;
 import com.framework.annotations.PostConstruct;
+import com.framework.annotations.Service;
 import com.framework.annotations.Value;
 import com.mi.app.repository.IUserRepository;
 
-@Component
+@Service
 public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
