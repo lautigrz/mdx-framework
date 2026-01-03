@@ -17,9 +17,13 @@ public class MiniSpringContext implements ApplicationContext{
 
     }
 
-
     @Override
     public <T> T getBean(Class<T> beanClass) {
         return this.beanFactory.getBean(beanClass);
+    }
+
+    @Override
+    public List<Class<?>> getRegisteredControllers(){
+        return this.beanFactory.getRegisteredControllers();
     }
 }

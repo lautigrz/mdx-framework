@@ -81,4 +81,8 @@ public class SimpleBeanFactory implements BeanFactory {
         resolvers.add(new ProviderResolver(this));
         resolvers.add(new TypeResolver(this));
     }
+
+    public List<Class<?>> getRegisteredControllers(){
+        return registry.extractClassesControllers();
+    }
 }

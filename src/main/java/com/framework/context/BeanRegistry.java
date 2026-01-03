@@ -1,5 +1,7 @@
 package com.framework.context;
 
+import com.framework.annotations.RestController;
+
 import java.util.List;
 
 public class BeanRegistry {
@@ -32,5 +34,14 @@ public class BeanRegistry {
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("No se encontró ninguna clase con el nombre: " + className));
     }
+
+
+    public List<Class<?>> extractClassesControllers() {
+        return registeredBeans.stream().filter(
+                clase -> clase.isAnnotationPresent(RestController.class))
+                .toList();
+    }
+
+
 
 }
