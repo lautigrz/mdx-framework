@@ -17,7 +17,7 @@ public class ReportService {
     public void generarReporte() {
         System.out.println("--- Generando reporte ---");
 
-        // ¡AQUÍ! Recién ahora se llama a getBean() internamente
+        // Recién ahora se llama a getBean() internamente
         // Si DatabaseService no existía, se crea en este milisegundo.
         DatabaseService db = databaseServiceProvider.get();
 

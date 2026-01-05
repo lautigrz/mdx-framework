@@ -1,103 +1,103 @@
 package com.framework.web;
-
-import com.framework.annotations.GetMapping;
-import com.framework.annotations.RequestParam;
 import com.framework.context.ApplicationContext;
-import com.framework.util.SimpleTypeConverter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+
 
 public class DispatcherHandler implements HttpHandler {
 
-    private final ApplicationContext context;
-    private final SimpleTypeConverter typeConverter = new SimpleTypeConverter();
+    private static final Logger logger = Logger.getLogger(DispatcherHandler.class.getName());
 
-    private final List<RouteEntry> routeEntries = new ArrayList<>();
+    private final RouteRegistry routeRegistry;
+    private final HandlerAdapter handlerAdapter;
 
     public DispatcherHandler(ApplicationContext context) {
-        this.context = context;
-
-        loadRoutes();
-
+        this.handlerAdapter = new HandlerAdapter();
+        this.routeRegistry = new RouteRegistry(context);
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
-        String path = exchange.getRequestURI().getPath();
-        String method = exchange.getRequestMethod();
-        String query = exchange.getRequestURI().getQuery();
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            String query = exchange.getRequestURI().getQuery();
 
-        Map<String, String> queryParams = getRequestParams(query);
+            logger.log(Level.INFO, "Received " + method + " request for " + path);
 
-        System.out.println("Received " + method + " request for " + path);
+            RouteEntry entry = routeRegistry.getRoute(method, path);
 
-        RouteEntry entry = getRouteEntry(method, path);
+            validateRoute(entry, path);
 
-            if (entry == null) {
-                System.out.println("❌ Ruta no encontrada para: " + path);
-                sendError(exchange, 404, "404 Not Found - Ruta no registrada");
-                return;
-            }
+            Map<String, String> queryParams = getRequestParams(query);
+            Map<String, String> pathParams = getPathVariables(entry, path);
 
-            if (entry.handlerMethod() == null) {
-                sendError(exchange, 500, "HandlerMethod nulo en RouteEntry");
-                return;
-            }
+            Object result = handlerAdapter.execute(entry, queryParams, pathParams);
 
-        Object result = getObjectResult(entry.handlerMethod(), queryParams);
+            sendResponse(exchange, 200, result);
 
+        } catch (RouteNotFoundException e) {
+            logger.warning(e.getMessage());
+
+            sendResponse(exchange, 404, "Not Found: " + e.getMessage());
+
+        } catch (IllegalArgumentException e) {
+            logger.warning(e.getMessage());
+
+            sendResponse(exchange, 400, "Bad Request: " + e.getMessage());
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error crítico en el servidor", e);
+            e.printStackTrace();
+
+            sendResponse(exchange, 500, "Internal Server Error: Algo salió mal.");
+        }
+
+    }
+
+    private void sendResponse(HttpExchange exchange, int code,Object result) throws IOException {
         String responseBody = result.toString();
 
         byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
 
-        exchange.sendResponseHeaders(200, responseBytes.length);
+        exchange.sendResponseHeaders(code, responseBytes.length);
         OutputStream os = exchange.getResponseBody();
         os.write(responseBytes);
         os.close();
-
-        } catch (Exception e) {
-            System.err.println("💥 ERROR NO CONTROLADO:");
-            e.printStackTrace();
-
-            try {
-                sendError(exchange, 500, "Internal Error: " + e.toString());
-            } catch (IOException ioException) {
-
-            }
-
-    }
-    }
-    private void sendError(HttpExchange exchange, int code, String message) throws IOException {
-        byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, bytes.length);
-        OutputStream os = exchange.getResponseBody();
-        os.write(bytes);
-        os.close();
     }
 
-    private RouteEntry getRouteEntry(String method, String path) {
 
-        for(RouteEntry entry : routeEntries) {
-            if(entry.matches(method,path) && entry.httpMethod().equalsIgnoreCase(method)) {
-                System.out.println("Matched route for " + path + " with pattern " + entry.urlPattern().pattern());
-                return entry;
-            }
+    private void validateRoute(RouteEntry entry, String path) {
+        if (entry == null) {
+            throw new RouteNotFoundException("No se encontró ruta para: " + path);
         }
+        if (entry.handlerMethod() == null) {
+            throw new RuntimeException("Configuración corrupta: HandlerMethod es nulo");
+        }
+    }
 
-        return null;
+    private Map<String, String> getPathVariables(RouteEntry entry, String path) {
+        Map<String, String> variables = new HashMap<>();
+
+        Matcher matcher = entry.urlPattern().matcher(path);
+
+        if(matcher.matches()){
+            for(int i = 0; i < entry.pathVariables().size(); i++) {
+                String paramName = entry.pathVariables().get(i);
+                String paramValue = matcher.group(i + 1);
+                variables.put(paramName, paramValue);
+            }
+
+        }
+        return variables;
 
     }
 
@@ -115,74 +115,8 @@ public class DispatcherHandler implements HttpHandler {
         }
         return requestParams;
     }
-
-    private Object getObjectResult(HandlerMethod handlerMethod, Map<String, String> requestParams) throws IllegalAccessException, InvocationTargetException {
-        Method methodToInvoke = handlerMethod.method();
-        System.out.println("Invoking method: " + methodToInvoke.getName());
-        Object controllerInstance = handlerMethod.controller();
-        System.out.println("On controller: " + controllerInstance.getClass().getName());
-        Object[] parameters = resolveMethodParameters(methodToInvoke, requestParams);
-
-        methodToInvoke.setAccessible(true);
-
-        return methodToInvoke.invoke(controllerInstance, parameters);
-    }
-
-    private Object[] resolveMethodParameters(Method method, Map<String, String> requestParams) {
-
-        Parameter[] parameters = method.getParameters();
-
-        Object[] params = new Object[parameters.length];
-
-        for(int i = 0; i < parameters.length; i++ ){
-            Parameter parameter = parameters[i];
-
-            if(parameter.isAnnotationPresent(RequestParam.class)){
-                RequestParam requestParam = parameter.getAnnotation(RequestParam.class);
-                String paramName = requestParam.value();
-                String paramValue = requestParams.get(paramName);
-                params[i] = typeConverter.convert(parameter.getType(), paramValue);
-            }
-        }
-
-        return params;
-    }
-
-    private boolean evaluateNotNull(HttpExchange exchange, HandlerMethod handlerMethod) throws IOException {
-        if(handlerMethod == null){
-            String response = "404 Not Found";
-            exchange.sendResponseHeaders(404, response.length());
-            OutputStream os = exchange.getResponseBody();
-            os.write(response.getBytes());
-            os.close();
-            return true;
-        }
-        return false;
-    }
-
-
-    private void loadRoutes () {
-        List<Class<?>> controllers = context.getRegisteredControllers();
-
-        for(Class<?> controller : controllers){
-            Object instanceController = context.getBean(controller);
-
-            for(Method method : instanceController.getClass().getMethods()){
-                if(method.isAnnotationPresent(GetMapping.class)){
-                    GetMapping getMapping = method.getAnnotation(GetMapping.class);
-                    String path = getMapping.value();
-
-                    String regex = "^" + path.replaceAll("\\{[^}]+\\}", "([^/]+)") + "[/?]?$";
-
-                    Pattern pattern = Pattern.compile(regex);
-                    String methodD = "GET";
-                    routeEntries.add(new RouteEntry(methodD, pattern, new HandlerMethod(instanceController, method)));
-
-                    System.out.println("Mapped GET " + path + " to " + method.getName() + " in " + controller.getSimpleName());
-                }
-            }
-
-        }
+    public static class RouteNotFoundException extends RuntimeException {
+        public RouteNotFoundException(String msg) { super(msg); }
     }
 
 }

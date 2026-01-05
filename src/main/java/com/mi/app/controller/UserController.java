@@ -1,9 +1,6 @@
 package com.mi.app.controller;
 
-import com.framework.annotations.GetMapping;
-import com.framework.annotations.PostMapping;
-import com.framework.annotations.RequestParam;
-import com.framework.annotations.RestController;
+import com.framework.annotations.*;
 
 @RestController
 public class UserController {
@@ -14,10 +11,9 @@ public class UserController {
         return "User " + name + " is " + age + " years old.";
     }
 
-
-    @GetMapping("/user/list")
-    public String listUsers() {
-        return "User List";
+    @GetMapping("/user/list/{id}")
+    public String listUsers(@PathVariable("id") int id, @RequestParam("name") String name) {
+        return "User List " + id + ": " + name;
     }
 
     @PostMapping("/user/new")
