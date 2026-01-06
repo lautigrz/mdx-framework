@@ -1,8 +1,9 @@
 package com.framework.web;
 
-import com.framework.annotations.GetMapping;
-import com.framework.annotations.PostMapping;
+import com.framework.annotations.Get;
+import com.framework.annotations.Post;
 import com.framework.context.ApplicationContext;
+import com.framework.enums.HttpMethod;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public class RouteRegistry {
     }
 
 
-    public RouteEntry getRoute(String method, String path) {
+    public RouteEntry getRoute(HttpMethod method, String path) {
         for(RouteEntry entry : routeEntries) {
             if(entry.matches(method, path)) {
                 return entry;
@@ -40,20 +41,20 @@ public class RouteRegistry {
             Object instanceController = context.getBean(controller);
 
             for(Method method : instanceController.getClass().getMethods()){
-                if(method.isAnnotationPresent(GetMapping.class)){
-                    GetMapping annot = method.getAnnotation(GetMapping.class);
-                    registerRoute(instanceController, method, annot.value(), "GET");
+                if(method.isAnnotationPresent(Get.class)){
+                    Get annot = method.getAnnotation(Get.class);
+                    registerRoute(instanceController, method, annot.value(), HttpMethod.GET);
                 }
-                else if(method.isAnnotationPresent(PostMapping.class)){
-                    PostMapping annot = method.getAnnotation(PostMapping.class);
-                    registerRoute(instanceController, method, annot.value(), "POST");
+                else if(method.isAnnotationPresent(Post.class)){
+                    Post annot = method.getAnnotation(Post.class);
+                    registerRoute(instanceController, method, annot.value(), HttpMethod.POST);
                 }
             }
 
         }
     }
 
-    private void registerRoute(Object controllerInstance, Method method, String path, String httpMethod) {
+    private void registerRoute(Object controllerInstance, Method method, String path, HttpMethod httpMethod) {
 
         List<String> paramNames = new ArrayList<>();
 

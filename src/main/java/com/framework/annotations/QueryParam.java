@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-public @interface PostMapping {
+@Target(ElementType.PARAMETER)
+public @interface QueryParam {
     String value();
 }

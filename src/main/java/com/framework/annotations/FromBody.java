@@ -6,8 +6,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-@Component
-public @interface RestController {
-    String value() default "";
+@Target(ElementType.PARAMETER)
+public @interface FromBody {
 }

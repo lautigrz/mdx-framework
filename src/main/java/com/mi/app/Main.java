@@ -10,7 +10,6 @@ public class Main {
 
         ApplicationContext context = new MiniSpringContext("com.mi.app");
 
-
         System.out.println("--- Arrancando Servidor Web ---");
         MiniSpringApp.run(context, 8080);
     }

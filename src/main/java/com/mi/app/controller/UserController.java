@@ -1,23 +1,27 @@
 package com.mi.app.controller;
 
 import com.framework.annotations.*;
+import com.mi.app.controller.dto.UserDTO;
 
-@RestController
+import java.util.List;
+
+@RestResource
 public class UserController {
 
-
-    @GetMapping("/user")
-    public String getUserInfo(@RequestParam("name") String name, @RequestParam("age") int age) {
+    @Get("/user")
+    public String getUserInfo(@QueryParam("name") String name, @QueryParam("age") int age) {
         return "User " + name + " is " + age + " years old.";
     }
 
-    @GetMapping("/user/list/{id}")
-    public String listUsers(@PathVariable("id") int id, @RequestParam("name") String name) {
+    @Get("/user/list/{id}")
+    public String listUsers(@PathParam("id") int id, @QueryParam("name") String name) {
         return "User List " + id + ": " + name;
     }
 
-    @PostMapping("/user/new")
-    public String newUser(){
-        return "New User Created";
+    @Post("/user/new")
+    public List<UserDTO>  newUser(@FromBody List<UserDTO> users) {
+        Object primerElemento = users.get(0);
+        System.out.println("Clase real: " + primerElemento.getClass().getName());
+        return users;
     }
 }

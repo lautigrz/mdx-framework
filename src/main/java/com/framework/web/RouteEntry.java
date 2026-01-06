@@ -1,18 +1,20 @@
 package com.framework.web;
 
+import com.framework.enums.HttpMethod;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
 public record RouteEntry(
-        String httpMethod,
+        HttpMethod httpMethod,
         Pattern urlPattern,
         HandlerMethod handlerMethod,
         List<String> pathVariables
 ) {
 
-    public boolean matches(String method, String path) {
+    public boolean matches(HttpMethod httpMethod, String path) {
 
-        if (!this.httpMethod.equalsIgnoreCase(method)) {
+        if (!this.httpMethod.equals(httpMethod)){
             return false;
         }
 

@@ -1,6 +1,6 @@
 package com.framework.context;
 
-import com.framework.annotations.RestController;
+import com.framework.annotations.RestResource;
 
 import java.util.List;
 
@@ -38,7 +38,7 @@ public class BeanRegistry {
 
     public List<Class<?>> extractClassesControllers() {
         return registeredBeans.stream().filter(
-                clase -> clase.isAnnotationPresent(RestController.class))
+                clase -> clase.isAnnotationPresent(RestResource.class))
                 .toList();
     }
 

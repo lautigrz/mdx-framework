@@ -1,9 +1,13 @@
 package com.framework.web;
 import com.framework.context.ApplicationContext;
+import com.framework.enums.HttpMethod;
+import com.framework.exception.BadRequestException;
+import com.framework.exception.RouteNotFoundException;
+import com.framework.util.SimpleSerialization;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import java.io.IOException;
-import java.io.OutputStream;
+
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,17 +34,20 @@ public class DispatcherHandler implements HttpHandler {
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
             String query = exchange.getRequestURI().getQuery();
+            StringBuilder body = getBody(exchange);
 
             logger.log(Level.INFO, "Received " + method + " request for " + path);
 
-            RouteEntry entry = routeRegistry.getRoute(method, path);
+            RouteEntry entry = routeRegistry.getRoute(HttpMethod.valueOf(method), path);
 
             validateRoute(entry, path);
 
             Map<String, String> queryParams = getRequestParams(query);
             Map<String, String> pathParams = getPathVariables(entry, path);
 
-            Object result = handlerAdapter.execute(entry, queryParams, pathParams);
+            WebRequest webRequest = new WebRequest(queryParams, pathParams, body.toString());
+
+            Object result = handlerAdapter.execute(entry, webRequest);
 
             sendResponse(exchange, 200, result);
 
@@ -49,7 +56,7 @@ public class DispatcherHandler implements HttpHandler {
 
             sendResponse(exchange, 404, "Not Found: " + e.getMessage());
 
-        } catch (IllegalArgumentException e) {
+        } catch (BadRequestException e) {
             logger.warning(e.getMessage());
 
             sendResponse(exchange, 400, "Bad Request: " + e.getMessage());
@@ -64,16 +71,36 @@ public class DispatcherHandler implements HttpHandler {
     }
 
     private void sendResponse(HttpExchange exchange, int code,Object result) throws IOException {
-        String responseBody = result.toString();
+
+        String content = "";
+        String contentType = "text/plain; charset=UTF-8";
+
+        if(result instanceof String) {
+            content = (String) result;
+        } else {
+            SimpleSerialization serialization = new SimpleSerialization();
+            try {
+                content = serialization.toJson(result);
+                contentType = "application/json; charset=UTF-8";
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Error serializando la respuesta a JSON", e);
+                content = "Internal Server Error: Error serializando la respuesta.";
+                code = 500;
+            }
+        }
+
+        String responseBody = content;
 
         byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
 
+        exchange.getResponseHeaders().add("Content-Type", contentType);
+
         exchange.sendResponseHeaders(code, responseBytes.length);
+
         OutputStream os = exchange.getResponseBody();
         os.write(responseBytes);
         os.close();
     }
-
 
     private void validateRoute(RouteEntry entry, String path) {
         if (entry == null) {
@@ -82,6 +109,18 @@ public class DispatcherHandler implements HttpHandler {
         if (entry.handlerMethod() == null) {
             throw new RuntimeException("Configuración corrupta: HandlerMethod es nulo");
         }
+    }
+
+    private StringBuilder getBody(HttpExchange exchange) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
+
+        StringBuilder body = new StringBuilder();
+
+        String line;
+        while ((line = reader.readLine()) != null) {
+            body.append(line);
+        }
+        return body;
     }
 
     private Map<String, String> getPathVariables(RouteEntry entry, String path) {
@@ -115,8 +154,6 @@ public class DispatcherHandler implements HttpHandler {
         }
         return requestParams;
     }
-    public static class RouteNotFoundException extends RuntimeException {
-        public RouteNotFoundException(String msg) { super(msg); }
-    }
+
 
 }
