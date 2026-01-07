@@ -1,6 +1,8 @@
 package com.mi.app.repository;
 
+import com.mi.app.controller.dto.UserDTO;
+
 public interface IUserRepository {
-    String getUser();
+    UserDTO getUser(UserDTO userDTO);
 
 }

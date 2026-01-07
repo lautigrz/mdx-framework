@@ -62,7 +62,6 @@ public class RouteRegistry {
         Matcher matcher = nameExtractor.matcher(path);
 
         while(matcher.find()) {
-            logger.info("Found path variable: " + matcher.group(1));
             paramNames.add(matcher.group(1));
         }
 
@@ -70,7 +69,7 @@ public class RouteRegistry {
         Pattern pattern = Pattern.compile(regex);
 
         routeEntries.add(new RouteEntry(httpMethod, pattern, new HandlerMethod(controllerInstance, method),paramNames));
-
-        logger.info("Mapped " + httpMethod + " " + path + " to " + method.getName());
+        String target = controllerInstance.getClass().getSimpleName() + "." + method.getName();
+        logger.info(String.format("Mapped {%s %s} -> %s", httpMethod, path, target));
     }
 }

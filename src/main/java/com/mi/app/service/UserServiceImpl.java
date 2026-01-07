@@ -4,6 +4,7 @@ import com.framework.annotations.Component;
 import com.framework.annotations.PostConstruct;
 import com.framework.annotations.Service;
 import com.framework.annotations.Value;
+import com.mi.app.controller.dto.UserDTO;
 import com.mi.app.repository.IUserRepository;
 
 @Service
@@ -18,16 +19,17 @@ public class UserServiceImpl implements IUserService {
     }
     @PostConstruct
     public void init() {
-        System.out.println(">>> 2. PostConstruct: Inicializando lógica de negocio...");
+
 
         if (appName == null || appName.isEmpty()) {
             throw new RuntimeException("El nombre de la app no se cargó correctamente");
         }
 
-        System.out.println(">>> Sistema listo: " + appName);
+
     }
     @Override
-    public String getUserInfo() {
-        return userRepository.getUser();
+    public UserDTO getUserInfo(UserDTO userDTO) {
+
+        return userRepository.getUser(userDTO);
     }
 }
