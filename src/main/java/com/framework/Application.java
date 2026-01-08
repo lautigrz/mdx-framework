@@ -3,7 +3,11 @@ package com.framework;
 import com.framework.context.ApplicationContext;
 import com.framework.context.MiniSpringContext;
 import com.framework.util.LogConfig;
+import com.framework.util.SimpleSerialization;
 import com.framework.web.DispatcherHandler;
+import com.framework.web.response.DefaultResponseConverter;
+import com.framework.web.response.HttpResponseWriter;
+import com.framework.web.response.ResponseConverter;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -38,11 +42,22 @@ public class Application {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 
-        server.createContext("/", new DispatcherHandler(context));
+        server.createContext("/", initializeWebDispatcher(context));
 
         server.setExecutor(null);
         server.start();
         logger.info("Servidor iniciado en " + "http://localhost:8080");
     }
+
+    private static DispatcherHandler initializeWebDispatcher(ApplicationContext context) {
+        SimpleSerialization simpleSerialization = new SimpleSerialization();
+        HttpResponseWriter responseWriter = new HttpResponseWriter();
+        ResponseConverter converter = new DefaultResponseConverter(simpleSerialization);
+
+        return new DispatcherHandler(context, responseWriter, converter);
+    }
+
+
+
 
 }

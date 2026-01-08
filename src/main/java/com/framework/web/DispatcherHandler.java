@@ -4,6 +4,9 @@ import com.framework.enums.HttpMethod;
 import com.framework.exception.BadRequestException;
 import com.framework.exception.RouteNotFoundException;
 import com.framework.util.SimpleSerialization;
+import com.framework.web.response.HttpResponseWriter;
+import com.framework.web.response.ResponseConverter;
+import com.framework.web.response.ResponsePayload;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -22,10 +25,16 @@ public class DispatcherHandler implements HttpHandler {
 
     private final RouteRegistry routeRegistry;
     private final HandlerAdapter handlerAdapter;
-
-    public DispatcherHandler(ApplicationContext context) {
+    private final HttpResponseWriter responseWriter;
+    private final ResponseConverter responseConverter;
+    public DispatcherHandler(ApplicationContext context,
+                             HttpResponseWriter responseWriter,
+                             ResponseConverter responseConverter) {
         this.handlerAdapter = new HandlerAdapter();
         this.routeRegistry = new RouteRegistry(context);
+        this.responseWriter = responseWriter;
+        this.responseConverter = responseConverter;
+
     }
 
     @Override
@@ -34,7 +43,7 @@ public class DispatcherHandler implements HttpHandler {
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
             String query = exchange.getRequestURI().getQuery();
-            StringBuilder body = getBody(exchange);
+            String body = getBody(exchange).toString();
 
             logger.log(Level.INFO, "Received " + method + " request for " + path);
 
@@ -45,61 +54,34 @@ public class DispatcherHandler implements HttpHandler {
             Map<String, String> queryParams = getRequestParams(query);
             Map<String, String> pathParams = getPathVariables(entry, path);
 
-            WebRequest webRequest = new WebRequest(queryParams, pathParams, body.toString());
+            WebRequest webRequest = new WebRequest(queryParams, pathParams, body);
 
             Object result = handlerAdapter.execute(entry, webRequest);
 
-            sendResponse(exchange, 200, result);
+            ResponsePayload payload = responseConverter.convert(result);
+
+            responseWriter.writeResponse(exchange, 200, payload);
 
         } catch (RouteNotFoundException e) {
-            logger.warning(e.getMessage());
 
-            sendResponse(exchange, 404, "Not Found: " + e.getMessage());
+            ResponsePayload payload = responseConverter.convertError(404,e.getMessage());
+
+            responseWriter.writeResponse(exchange, 404, payload);
 
         } catch (BadRequestException e) {
-            logger.warning(e.getMessage());
 
-            sendResponse(exchange, 400, "Bad Request: " + e.getMessage());
+            ResponsePayload payload = responseConverter.convertError(400,e.getMessage());
+
+            responseWriter.writeResponse(exchange,400,payload);
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error crítico en el servidor", e);
-            e.printStackTrace();
 
-            sendResponse(exchange, 500, "Internal Server Error: Algo salió mal.");
+            ResponsePayload payload = responseConverter.convertError(500,e.getMessage());
+
+            responseWriter.writeResponse(exchange,500,payload);
         }
 
-    }
-
-    private void sendResponse(HttpExchange exchange, int code,Object result) throws IOException {
-
-        String content = "";
-        String contentType = "text/plain; charset=UTF-8";
-
-        if(result instanceof String) {
-            content = (String) result;
-        } else {
-            SimpleSerialization serialization = new SimpleSerialization();
-            try {
-                content = serialization.toJson(result);
-                contentType = "application/json; charset=UTF-8";
-            } catch (Exception e) {
-                logger.log(Level.SEVERE, "Error serializando la respuesta a JSON", e);
-                content = "Internal Server Error: Error serializando la respuesta.";
-                code = 500;
-            }
-        }
-
-        String responseBody = content;
-
-        byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
-
-        exchange.getResponseHeaders().add("Content-Type", contentType);
-
-        exchange.sendResponseHeaders(code, responseBytes.length);
-
-        OutputStream os = exchange.getResponseBody();
-        os.write(responseBytes);
-        os.close();
     }
 
     private void validateRoute(RouteEntry entry, String path) {
@@ -154,6 +136,5 @@ public class DispatcherHandler implements HttpHandler {
         }
         return requestParams;
     }
-
 
 }

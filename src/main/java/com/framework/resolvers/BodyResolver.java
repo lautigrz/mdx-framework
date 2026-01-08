@@ -27,7 +27,7 @@ public class BodyResolver implements WebArgumentResolver{
             Type fullType = parameter.getParameterizedType();
             return this.simpleSerialization.fromJson(webRequest.body(), fullType);
         }catch (Exception e){
-            throw new BadRequestException("Failed to deserialize request body to object of type ", e);
+            throw new BadRequestException("Invalid request body ", e);
         }
     }
 }
