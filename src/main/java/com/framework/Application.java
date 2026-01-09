@@ -23,10 +23,12 @@ public class Application {
 
         long startTime = System.currentTimeMillis();
         String basePackage = primarySource.getPackageName();
-        ApplicationContext context = new MiniSpringContext(basePackage);
 
         logger.info("Iniciando MiniFramework para " + primarySource.getSimpleName() + "...");
         try {
+            ApplicationContext context = new MiniSpringContext(basePackage);
+            registerCoreComponents(context);
+            context.refresh();
 
             startWebServer(context);
 
@@ -36,6 +38,18 @@ public class Application {
 
         long endTime = System.currentTimeMillis();
         logger.info("Aplicación iniciada en " + (endTime - startTime) / 1000.0 + " segundos.");
+    }
+
+    private static void registerCoreComponents(ApplicationContext context) {
+        SimpleSerialization serializer = new SimpleSerialization();
+        context.registerSingleton(SimpleSerialization.class, serializer);
+
+        HttpResponseWriter writer = new HttpResponseWriter();
+        context.registerSingleton(HttpResponseWriter.class, writer);
+
+        DefaultResponseConverter converter = new DefaultResponseConverter(serializer);
+
+        context.registerSingleton(DefaultResponseConverter.class, converter);
     }
 
     private static void startWebServer(ApplicationContext context) throws IOException {
@@ -50,10 +64,8 @@ public class Application {
     }
 
     private static DispatcherHandler initializeWebDispatcher(ApplicationContext context) {
-        SimpleSerialization simpleSerialization = new SimpleSerialization();
-        HttpResponseWriter responseWriter = new HttpResponseWriter();
-        ResponseConverter converter = new DefaultResponseConverter(simpleSerialization);
-
+        HttpResponseWriter responseWriter = context.getBean(HttpResponseWriter.class);
+        ResponseConverter converter = context.getBean(DefaultResponseConverter.class);
         return new DispatcherHandler(context, responseWriter, converter);
     }
 

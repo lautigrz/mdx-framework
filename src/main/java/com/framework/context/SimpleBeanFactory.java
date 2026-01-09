@@ -3,25 +3,63 @@ package com.framework.context;
 import com.framework.annotations.PostConstruct;
 import com.framework.config.PropertySource;
 import com.framework.resolvers.*;
-import com.framework.scanners.ComponentScanner;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.*;
+import java.util.logging.Logger;
 
 public class SimpleBeanFactory implements BeanFactory {
-    private final BeanRegistry registry;
+    private BeanRegistry registry;
+    private final PropertySource propertySource;
     private final Map<Class<?>, Object> singletonCache = new HashMap<Class<?>, Object>();
     private final List<ArgumentResolver> resolvers = new ArrayList<>();
+    private final Logger logger = Logger.getLogger(SimpleBeanFactory.class.getName());
 
-    public SimpleBeanFactory(List<Class<?>> classes, PropertySource propertySource) {
-        this.registry = new BeanRegistry(classes);
-        initializeResolvers(propertySource);
+    public SimpleBeanFactory(PropertySource propertySource) {
+        this.propertySource = propertySource;
+    }
+
+    public <T> void registerManualBean(Class<T> type, T instance) {
+        singletonCache.put(type, instance);
+    }
+
+    private <T> Object searchInCache(Class<T> type) {
+        if (singletonCache.containsKey(type)) {
+            logger.info("Bean encontrado en caché por clase: " + type.getSimpleName());
+            return type.cast(singletonCache.get(type));
+        }
+        Object foundInstance = null;
+
+        for (Object instance : singletonCache.values()) {
+            if (type.isInstance(instance)) {
+                foundInstance = instance;
+                break;
+            }
+        }
+
+        if(foundInstance != null){
+            logger.info("Bean encontrado en caché por tipo (LENTO). Creando atajo para: " + type.getSimpleName());
+            singletonCache.put(type, foundInstance);
+            return foundInstance;
+        }
+
+        if (registry == null) {
+            throw new RuntimeException("El BeanFactory aún no ha cargado las definiciones (Fase de escaneo incompleta).");
+        }
+
+        return null;
     }
 
     @Override
     public <T> T getBean(Class<T> type) {
+
+        T cachedInstance = (T) searchInCache(type);
+
+        if (cachedInstance != null) {
+            return cachedInstance;
+        }
 
         try {
             Class<?> implementationClass = registry.findImplementation(type);
@@ -31,7 +69,10 @@ public class SimpleBeanFactory implements BeanFactory {
 
             T instance = createInstance(implementationClass);
 
-            singletonCache.put(implementationClass, instance);
+            if(type.isInterface() || !type.equals(implementationClass)) {
+                logger.info("Registrando bean en caché por tipo: " + type.getSimpleName());
+                singletonCache.put(type, instance);
+            }
 
             return instance;
 
@@ -83,6 +124,29 @@ public class SimpleBeanFactory implements BeanFactory {
     }
 
     public List<Class<?>> getRegisteredControllers(){
-        return registry.extractClassesControllers();
+        return (registry != null) ? registry.extractClassesControllers() : Collections.emptyList();
+    }
+
+    public void instantiate(List<Class<?>> scannedClasses) {
+
+        this.registry = new BeanRegistry(scannedClasses);
+
+        initializeResolvers(this.propertySource);
+
+        for (Class<?> clazz : scannedClasses) {
+
+            if (clazz.isInterface() || Modifier.isAbstract(clazz.getModifiers())) {
+                continue;
+            }
+
+            try {
+                getBean(clazz);
+            } catch (Exception e) {
+
+                System.err.println("Error instanciando bean al arranque: " + clazz.getName());
+                e.printStackTrace();
+            }
+        }
+
     }
 }

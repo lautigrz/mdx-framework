@@ -6,14 +6,14 @@ import com.framework.scanners.ComponentScanner;
 import java.util.*;
 
 public class MiniSpringContext implements ApplicationContext{
-    private final PropertySource config;
     private final ComponentScanner scanner;
     private final SimpleBeanFactory beanFactory;
+    private final String basePackage;
     public MiniSpringContext(String basePackage) {
-        this.config = new PropertiesFileSource("config.properties");
+        PropertySource config = new PropertiesFileSource("config.properties");
         this.scanner = new ComponentScanner();
-        List<Class<?>> classes = scanner.scan(basePackage);
-        this.beanFactory = new SimpleBeanFactory(classes,config);
+        this.basePackage = basePackage;
+        this.beanFactory = new SimpleBeanFactory(config);
 
     }
 
@@ -26,4 +26,17 @@ public class MiniSpringContext implements ApplicationContext{
     public List<Class<?>> getRegisteredControllers(){
         return this.beanFactory.getRegisteredControllers();
     }
+
+    @Override
+    public void refresh() {
+
+        List<Class<?>> scannedClasses = scanner.scan(basePackage);
+        this.beanFactory.instantiate(scannedClasses);
+    }
+
+    @Override
+    public <T> void registerSingleton(Class<T> type, T instance) {
+        this.beanFactory.registerManualBean(type, instance);
+    }
+
 }

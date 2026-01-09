@@ -3,6 +3,7 @@ package com.mi.app.controller;
 import com.framework.annotations.*;
 import com.mi.app.controller.dto.UserDTO;
 import com.mi.app.service.IUserService;
+import com.mi.app.service.UserServiceImpl;
 
 import java.util.List;
 
@@ -10,9 +11,13 @@ import java.util.List;
 public class UserController {
 
     private final IUserService userService;
-
-    public UserController(IUserService userService) {
+    private final UserServiceImpl userServiceImpl;
+    public UserController(IUserService userService, UserServiceImpl userServiceImpl) {
         this.userService = userService;
+        this.userServiceImpl = userServiceImpl;
+
+        System.out.println("IUserService: " + userService);
+        System.out.println("UserServiceImp: " + userServiceImpl);
     }
 
     @Get("/user")
