@@ -19,10 +19,67 @@ public class SimpleBeanFactory implements BeanFactory {
 
     public SimpleBeanFactory(PropertySource propertySource) {
         this.propertySource = propertySource;
+        initializeResolvers(propertySource);
+    }
+    public List<Class<?>> getRegisteredControllers(){
+        return (registry != null) ? registry.extractClassesControllers() : Collections.emptyList();
     }
 
     public <T> void registerManualBean(Class<T> type, T instance) {
         singletonCache.put(type, instance);
+    }
+
+    @Override
+    public <T> T getBean(Class<T> type) {
+
+        T cachedInstance = (T) searchInCache(type);
+
+        if (cachedInstance != null) {
+            return cachedInstance;
+        }
+
+        try {
+            Class<?> implementationClass = registry.findImplementation(type);
+            if(singletonCache.containsKey(implementationClass)){
+                return (T) singletonCache.get(implementationClass);
+            }
+
+            T instance = createInstance(implementationClass);
+
+            singletonCache.put(implementationClass, instance);
+
+            if(!implementationClass.equals(type)) {
+                logger.info("Registrando bean en caché por tipo: " + type.getSimpleName());
+                singletonCache.put(type, instance);
+            }
+
+            return instance;
+
+        }catch (Exception e) {
+            throw new RuntimeException("Error creando bean: " + type.getSimpleName(), e);
+        }
+
+    }
+
+    public void instantiate(List<Class<?>> scannedClasses) {
+
+        this.registry = new BeanRegistry(scannedClasses);
+
+        for (Class<?> clazz : scannedClasses) {
+
+            if (clazz.isInterface() || Modifier.isAbstract(clazz.getModifiers())) {
+                continue;
+            }
+
+            try {
+                getBean(clazz);
+            } catch (Exception e) {
+
+                System.err.println("Error instanciando bean al arranque: " + clazz.getName());
+                e.printStackTrace();
+            }
+        }
+
     }
 
     private <T> Object searchInCache(Class<T> type) {
@@ -52,37 +109,8 @@ public class SimpleBeanFactory implements BeanFactory {
         return null;
     }
 
-    @Override
-    public <T> T getBean(Class<T> type) {
-
-        T cachedInstance = (T) searchInCache(type);
-
-        if (cachedInstance != null) {
-            return cachedInstance;
-        }
-
-        try {
-            Class<?> implementationClass = registry.findImplementation(type);
-            if(singletonCache.containsKey(implementationClass)){
-                return (T) singletonCache.get(implementationClass);
-            }
-
-            T instance = createInstance(implementationClass);
-
-            if(type.isInterface() || !type.equals(implementationClass)) {
-                logger.info("Registrando bean en caché por tipo: " + type.getSimpleName());
-                singletonCache.put(type, instance);
-            }
-
-            return instance;
-
-        }catch (Exception e) {
-            throw new RuntimeException("Error creando bean: " + type.getSimpleName(), e);
-        }
-
-    }
     private <T> T createInstance(Class<?> concreteClass) throws Exception {
-        Constructor<?> constructor = concreteClass.getDeclaredConstructors()[0];
+        Constructor<?> constructor = findBestConstructor(concreteClass);
         constructor.setAccessible(true);
 
         Object[] arguments = resolveArguments(constructor);
@@ -91,6 +119,14 @@ public class SimpleBeanFactory implements BeanFactory {
         initializeBean(instance);
         return instance;
 
+    }
+    private Constructor<?> findBestConstructor(Class<?> concreteClass) {
+        Constructor<?>[] constructors = concreteClass.getDeclaredConstructors();
+        if (constructors.length == 1) return constructors[0];
+
+        return Arrays.stream(constructors)
+                .max(Comparator.comparingInt(Constructor::getParameterCount))
+                .orElseThrow(() -> new RuntimeException("No hay constructor viable en " + concreteClass.getName()));
     }
     private Object[] resolveArguments(Constructor<?> constructor) {
         return Arrays.stream(constructor.getParameters())
@@ -123,30 +159,4 @@ public class SimpleBeanFactory implements BeanFactory {
         resolvers.add(new TypeResolver(this));
     }
 
-    public List<Class<?>> getRegisteredControllers(){
-        return (registry != null) ? registry.extractClassesControllers() : Collections.emptyList();
-    }
-
-    public void instantiate(List<Class<?>> scannedClasses) {
-
-        this.registry = new BeanRegistry(scannedClasses);
-
-        initializeResolvers(this.propertySource);
-
-        for (Class<?> clazz : scannedClasses) {
-
-            if (clazz.isInterface() || Modifier.isAbstract(clazz.getModifiers())) {
-                continue;
-            }
-
-            try {
-                getBean(clazz);
-            } catch (Exception e) {
-
-                System.err.println("Error instanciando bean al arranque: " + clazz.getName());
-                e.printStackTrace();
-            }
-        }
-
-    }
 }

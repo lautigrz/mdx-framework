@@ -5,9 +5,11 @@ import com.framework.annotations.Post;
 import com.framework.context.ApplicationContext;
 import com.framework.enums.HttpMethod;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,11 +20,15 @@ public class RouteRegistry {
     private final List<RouteEntry> routeEntries = new ArrayList<>();
     private final ApplicationContext context;
 
+    private static final Map<Class<? extends Annotation>, HttpMethod> HTTP_ANNOTATIONS = Map.of(
+            Get.class, HttpMethod.GET,
+            Post.class, HttpMethod.POST
+
+    );
     public RouteRegistry(ApplicationContext applicationContext) {
         this.context = applicationContext;
         loadRoutes();
     }
-
 
     public RouteEntry getRoute(HttpMethod method, String path) {
         for(RouteEntry entry : routeEntries) {
@@ -33,7 +39,6 @@ public class RouteRegistry {
         return null;
     }
 
-
     private void loadRoutes() {
         List<Class<?>> controllers = context.getRegisteredControllers();
 
@@ -41,18 +46,31 @@ public class RouteRegistry {
             Object instanceController = context.getBean(controller);
 
             for(Method method : instanceController.getClass().getMethods()){
-                if(method.isAnnotationPresent(Get.class)){
-                    Get annot = method.getAnnotation(Get.class);
-                    registerRoute(instanceController, method, annot.value(), HttpMethod.GET);
-                }
-                else if(method.isAnnotationPresent(Post.class)){
-                    Post annot = method.getAnnotation(Post.class);
-                    registerRoute(instanceController, method, annot.value(), HttpMethod.POST);
+
+                for (Map.Entry<Class<? extends Annotation>, HttpMethod> entry : HTTP_ANNOTATIONS.entrySet()) {
+                    Class<? extends Annotation> annotationType = entry.getKey();
+                    HttpMethod httpMethod = entry.getValue();
+
+                    if(method.isAnnotationPresent(annotationType)) {
+                        try {
+
+                            Annotation annotation = method.getAnnotation(annotationType);
+
+                            Method valueMethod = annotationType.getMethod("value");
+                            String path = (String) valueMethod.invoke(annotation);
+
+                            registerRoute(instanceController, method, path, httpMethod);
+
+                        } catch (Exception e) {
+                            throw new RuntimeException("Error al procesar la ruta en: " + method.getName(), e);
+                        }
+                    }
                 }
             }
 
         }
     }
+
 
     private void registerRoute(Object controllerInstance, Method method, String path, HttpMethod httpMethod) {
 

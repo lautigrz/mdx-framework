@@ -3,20 +3,16 @@ import com.framework.context.ApplicationContext;
 import com.framework.enums.HttpMethod;
 import com.framework.exception.BadRequestException;
 import com.framework.exception.RouteNotFoundException;
-import com.framework.util.SimpleSerialization;
+import com.framework.util.HttpRequestParser;
 import com.framework.web.response.HttpResponseWriter;
 import com.framework.web.response.ResponseConverter;
 import com.framework.web.response.ResponsePayload;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
 
 
 public class DispatcherHandler implements HttpHandler {
@@ -42,8 +38,6 @@ public class DispatcherHandler implements HttpHandler {
         try {
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
-            String query = exchange.getRequestURI().getQuery();
-            String body = getBody(exchange).toString();
 
             logger.log(Level.INFO, "Received " + method + " request for " + path);
 
@@ -51,10 +45,7 @@ public class DispatcherHandler implements HttpHandler {
 
             validateRoute(entry, path);
 
-            Map<String, String> queryParams = getRequestParams(query);
-            Map<String, String> pathParams = getPathVariables(entry, path);
-
-            WebRequest webRequest = new WebRequest(queryParams, pathParams, body);
+            WebRequest webRequest = buildWebRequest(exchange, entry, path);
 
             Object result = handlerAdapter.execute(entry, webRequest);
 
@@ -63,25 +54,30 @@ public class DispatcherHandler implements HttpHandler {
             responseWriter.writeResponse(exchange, 200, payload);
 
         } catch (RouteNotFoundException e) {
-
-            ResponsePayload payload = responseConverter.convertError(404,e.getMessage());
-
-            responseWriter.writeResponse(exchange, 404, payload);
+            handleException(exchange, 404, e);
 
         } catch (BadRequestException e) {
-
-            ResponsePayload payload = responseConverter.convertError(400,e.getMessage());
-
-            responseWriter.writeResponse(exchange,400,payload);
+            handleException(exchange, 400, e);
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error crítico en el servidor", e);
-
-            ResponsePayload payload = responseConverter.convertError(500,e.getMessage());
-
-            responseWriter.writeResponse(exchange,500,payload);
+            handleException(exchange, 500, e);
         }
 
+    }
+
+    private WebRequest buildWebRequest(HttpExchange exchange, RouteEntry entry, String path) throws IOException {
+        String body = HttpRequestParser.parseBody(exchange);
+        Map<String, String> pathParams = HttpRequestParser.parsePathVariables(entry, path);
+        Map<String, String> queryParams = HttpRequestParser.parseQueryParameters(exchange.getRequestURI().getQuery());
+        return new WebRequest(pathParams, queryParams, body);
+
+    }
+
+    private void handleException(HttpExchange exchange, int statusCode, Exception e) throws IOException {
+
+        ResponsePayload payload = responseConverter.convertError(statusCode, e.getMessage());
+        responseWriter.writeResponse(exchange, statusCode, payload);
     }
 
     private void validateRoute(RouteEntry entry, String path) {
@@ -93,48 +89,5 @@ public class DispatcherHandler implements HttpHandler {
         }
     }
 
-    private StringBuilder getBody(HttpExchange exchange) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
-
-        StringBuilder body = new StringBuilder();
-
-        String line;
-        while ((line = reader.readLine()) != null) {
-            body.append(line);
-        }
-        return body;
-    }
-
-    private Map<String, String> getPathVariables(RouteEntry entry, String path) {
-        Map<String, String> variables = new HashMap<>();
-
-        Matcher matcher = entry.urlPattern().matcher(path);
-
-        if(matcher.matches()){
-            for(int i = 0; i < entry.pathVariables().size(); i++) {
-                String paramName = entry.pathVariables().get(i);
-                String paramValue = matcher.group(i + 1);
-                variables.put(paramName, paramValue);
-            }
-
-        }
-        return variables;
-
-    }
-
-    private Map<String, String> getRequestParams(String query) {
-        Map<String, String> requestParams = new HashMap<>();
-        if (query == null || query.isEmpty()) return requestParams;
-
-        String[] pairs = query.split("&");
-
-        for(String pair : pairs) {
-            String[] keyValue = pair.split("=");
-            if(keyValue.length == 2){
-                requestParams.put(keyValue[0], keyValue[1]);
-            }
-        }
-        return requestParams;
-    }
 
 }
