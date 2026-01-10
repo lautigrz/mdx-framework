@@ -1,9 +1,9 @@
 package com.mi.app.controller;
 
 import com.framework.annotations.*;
+import com.mi.app.controller.dto.CreateUserDTO;
 import com.mi.app.controller.dto.UserDTO;
 import com.mi.app.service.IUserService;
-import com.mi.app.service.UserServiceImpl;
 
 import java.util.List;
 
@@ -11,29 +11,28 @@ import java.util.List;
 public class UserController {
 
     private final IUserService userService;
-    private final UserServiceImpl userServiceImpl;
-    public UserController(IUserService userService, UserServiceImpl userServiceImpl) {
+    public UserController(IUserService userService) {
         this.userService = userService;
-        this.userServiceImpl = userServiceImpl;
 
-        System.out.println("IUserService: " + userService);
-        System.out.println("UserServiceImp: " + userServiceImpl);
+    }
+
+    @Get("/user/list")
+    public List<UserDTO> getUserInfo() {
+        return userService.listUsers();
+    }
+
+    @Get("/user/{id}")
+    public UserDTO listUsers(@PathParam("id") int id) {
+        return userService.getUser(id);
     }
 
     @Get("/user")
-    public String getUserInfo(@QueryParam("name") String name, @QueryParam("age") int age) {
-        return "User " + name + " is " + age + " years old.";
+    public List<UserDTO> getUsersByQuery(@QueryParam("name") String name) {
+        return userService.getUsersByQuery(name);
     }
 
-    @Get("/user/list/{id}")
-    public String listUsers(@PathParam("id") int id, @QueryParam("name") String name) {
-        return "User List " + id + ": " + name;
-    }
-
-    @Post("/user/new")
-    public String newUser(@FromBody UserDTO userDTO) {
-        UserDTO user = userService.getUserInfo(userDTO);
-        String info = "User Info: " + user.getName() + ", Age: " + user.getAge();
-        return info;
+    @Post("/user")
+    public CreateUserDTO newUser(@FromBody UserDTO userDTO) {
+        return userService.createUser(userDTO);
     }
 }

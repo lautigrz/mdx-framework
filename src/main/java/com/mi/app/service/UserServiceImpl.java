@@ -1,35 +1,55 @@
 package com.mi.app.service;
 
-import com.framework.annotations.Component;
-import com.framework.annotations.PostConstruct;
 import com.framework.annotations.Service;
-import com.framework.annotations.Value;
+import com.mi.app.controller.dto.CreateUserDTO;
 import com.mi.app.controller.dto.UserDTO;
+import com.mi.app.model.UserEntity;
 import com.mi.app.repository.IUserRepository;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
-    private final String appName;
 
-    public UserServiceImpl(IUserRepository userRepository, @Value("app.nombre") String appName) {
+    public UserServiceImpl(IUserRepository userRepository) {
         this.userRepository = userRepository;
-        this.appName = appName;
     }
-    @PostConstruct
-    public void init() {
 
-
-        if (appName == null || appName.isEmpty()) {
-            throw new RuntimeException("El nombre de la app no se cargó correctamente");
-        }
-
-
-    }
     @Override
-    public UserDTO getUserInfo(UserDTO userDTO) {
+    public UserDTO getUser(int id) {
+        UserEntity user = userRepository.getUser(id);
+        return new UserDTO(user.getName(), user.getEmail(), user.getAge());
+    }
 
-        return userRepository.getUser(userDTO);
+    @Override
+    public CreateUserDTO createUser(UserDTO userDTO) {
+
+        UserEntity userEntity = new UserEntity(userDTO.getName(), userDTO.getEmail(), userDTO.getAge());
+        userEntity= userRepository.createUser(userEntity);
+
+        return new CreateUserDTO(userEntity.getName(), userEntity.getEmail(), "Usuario creado con id: " + userEntity.getId());
+    }
+
+    @Override
+    public List<UserDTO> listUsers() {
+
+        List<UserEntity> users = userRepository.listUsers();
+
+        return users.stream().map(u ->
+                        new UserDTO(u.getName(), u.getEmail(), u.getAge()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserDTO> getUsersByQuery(String name) {
+
+        List<UserEntity> users = userRepository.listUserByFirtsChar(name);
+
+        return users.stream()
+                .map(u -> new UserDTO(u.getName(), u.getEmail(), u.getAge()))
+                .collect(Collectors.toList());
     }
 }

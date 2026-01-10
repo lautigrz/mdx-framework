@@ -25,22 +25,6 @@ public class HttpRequestParser {
         return body.toString();
     }
 
-    public static Map<String, String> parsePathVariables(RouteEntry entry, String path){
-        Map<String, String> variables = new HashMap<>();
-
-        Matcher matcher = entry.urlPattern().matcher(path);
-
-        if(matcher.matches()){
-            for(int i = 0; i < entry.pathVariables().size(); i++) {
-                String paramName = entry.pathVariables().get(i);
-                String paramValue = matcher.group(i + 1);
-                variables.put(paramName, paramValue);
-            }
-
-        }
-        return variables;
-    }
-
     public static Map<String, String> parseQueryParameters(String query){
         Map<String, String> requestParams = new HashMap<>();
         if (query == null || query.isEmpty()) return requestParams;
