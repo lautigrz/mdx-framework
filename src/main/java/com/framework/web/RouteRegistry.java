@@ -4,10 +4,13 @@ import com.framework.annotations.Get;
 import com.framework.annotations.Post;
 import com.framework.context.ApplicationContext;
 import com.framework.enums.HttpMethod;
+import com.framework.web.routing.RouteMatch;
+import com.framework.web.routing.RouteNode;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -17,7 +20,7 @@ import java.util.regex.Pattern;
 public class RouteRegistry {
     private static final Logger logger = Logger.getLogger(RouteRegistry.class.getName());
 
-    private final List<RouteEntry> routeEntries = new ArrayList<>();
+    private final Map<HttpMethod, RouteNode> rootNodes = new HashMap<>();
     private final ApplicationContext context;
 
     private static final Map<Class<? extends Annotation>, HttpMethod> HTTP_ANNOTATIONS = Map.of(
@@ -27,17 +30,24 @@ public class RouteRegistry {
     );
     public RouteRegistry(ApplicationContext applicationContext) {
         this.context = applicationContext;
+        for (HttpMethod method : HttpMethod.values()) {
+            rootNodes.put(method, new RouteNode());
+        }
         loadRoutes();
     }
 
-    public RouteEntry getRoute(HttpMethod method, String path) {
-        for(RouteEntry entry : routeEntries) {
-            if(entry.matches(method, path)) {
-                return entry;
-            }
-        }
-        return null;
+    public RouteMatch getRoute(HttpMethod method, String path) {
+        String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+        if (cleanPath.endsWith("/")) cleanPath = cleanPath.substring(0, cleanPath.length() - 1);
+
+        String[] parts = cleanPath.isEmpty() ? new String[0] : cleanPath.split("/");
+
+        RouteNode root = rootNodes.get(method);
+        if (root == null) return null;
+
+        return root.find(parts, 0);
     }
+
 
     private void loadRoutes() {
         List<Class<?>> controllers = context.getRegisteredControllers();
@@ -71,22 +81,19 @@ public class RouteRegistry {
         }
     }
 
-
     private void registerRoute(Object controllerInstance, Method method, String path, HttpMethod httpMethod) {
 
-        List<String> paramNames = new ArrayList<>();
+        String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+        if (cleanPath.endsWith("/")) cleanPath = cleanPath.substring(0, cleanPath.length() - 1);
+        String[] parts = cleanPath.isEmpty() ? new String[0] : cleanPath.split("/");
 
-        Pattern nameExtractor = Pattern.compile("\\{([^}]+)\\}");
-        Matcher matcher = nameExtractor.matcher(path);
+        RouteEntry entry = new RouteEntry(
+                httpMethod,
+                new HandlerMethod(controllerInstance, method)
+        );
 
-        while(matcher.find()) {
-            paramNames.add(matcher.group(1));
-        }
+        rootNodes.get(httpMethod).insert(parts, 0, entry);
 
-        String regex = "^" + path.replaceAll("\\{[^}]+\\}", "([^/]+)") + "[/?]?$";
-        Pattern pattern = Pattern.compile(regex);
-
-        routeEntries.add(new RouteEntry(httpMethod, pattern, new HandlerMethod(controllerInstance, method),paramNames));
         String target = controllerInstance.getClass().getSimpleName() + "." + method.getName();
         logger.info(String.format("Mapped {%s %s} -> %s", httpMethod, path, target));
     }

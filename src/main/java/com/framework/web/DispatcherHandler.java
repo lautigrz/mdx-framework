@@ -7,6 +7,7 @@ import com.framework.util.HttpRequestParser;
 import com.framework.web.response.HttpResponseWriter;
 import com.framework.web.response.ResponseConverter;
 import com.framework.web.response.ResponsePayload;
+import com.framework.web.routing.RouteMatch;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.*;
@@ -23,6 +24,8 @@ public class DispatcherHandler implements HttpHandler {
     private final HandlerAdapter handlerAdapter;
     private final HttpResponseWriter responseWriter;
     private final ResponseConverter responseConverter;
+    private final GlobalExceptionHandler globalExceptionHandler;
+
     public DispatcherHandler(ApplicationContext context,
                              HttpResponseWriter responseWriter,
                              ResponseConverter responseConverter) {
@@ -31,21 +34,26 @@ public class DispatcherHandler implements HttpHandler {
         this.responseWriter = responseWriter;
         this.responseConverter = responseConverter;
 
+        this.globalExceptionHandler = new GlobalExceptionHandler(responseWriter, responseConverter);
+        this.globalExceptionHandler.registerException(RouteNotFoundException.class, 404);
+        this.globalExceptionHandler.registerException(BadRequestException.class, 400);
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
             String path = exchange.getRequestURI().getPath();
-            String method = exchange.getRequestMethod();
+            HttpMethod method = HttpMethod.valueOf(exchange.getRequestMethod());
 
             logger.log(Level.INFO, "Received " + method + " request for " + path);
 
-            RouteEntry entry = routeRegistry.getRoute(HttpMethod.valueOf(method), path);
+            RouteMatch match = routeRegistry.getRoute(method, path);
 
-            validateRoute(entry, path);
+            validateRoute(match, path);
 
-            WebRequest webRequest = buildWebRequest(exchange, entry, path);
+            RouteEntry entry = match.routeEntry;
+
+            WebRequest webRequest = buildWebRequest(exchange, match, path);
 
             Object result = handlerAdapter.execute(entry, webRequest);
 
@@ -53,41 +61,30 @@ public class DispatcherHandler implements HttpHandler {
 
             responseWriter.writeResponse(exchange, 200, payload);
 
-        } catch (RouteNotFoundException e) {
-            handleException(exchange, 404, e);
-
-        } catch (BadRequestException e) {
-            handleException(exchange, 400, e);
-
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error crítico en el servidor", e);
-            handleException(exchange, 500, e);
+            handleException(exchange,e);
         }
 
     }
 
-    private WebRequest buildWebRequest(HttpExchange exchange, RouteEntry entry, String path) throws IOException {
+    private WebRequest buildWebRequest(HttpExchange exchange, RouteMatch match, String path) throws IOException {
         String body = HttpRequestParser.parseBody(exchange);
-        Map<String, String> pathParams = HttpRequestParser.parsePathVariables(entry, path);
+        Map<String, String> pathParams = match.pathVariables;
         Map<String, String> queryParams = HttpRequestParser.parseQueryParameters(exchange.getRequestURI().getQuery());
-        return new WebRequest(pathParams, queryParams, body);
+        return new WebRequest(queryParams,pathParams,  body);
 
     }
 
-    private void handleException(HttpExchange exchange, int statusCode, Exception e) throws IOException {
+    private void handleException(HttpExchange exchange, Exception e) throws IOException {
 
-        ResponsePayload payload = responseConverter.convertError(statusCode, e.getMessage());
-        responseWriter.writeResponse(exchange, statusCode, payload);
+         this.globalExceptionHandler.handleException(exchange, e);
     }
 
-    private void validateRoute(RouteEntry entry, String path) {
-        if (entry == null) {
+    private void validateRoute(RouteMatch match, String path) {
+        if (match == null) {
             throw new RouteNotFoundException("No se encontró ruta para: " + path);
         }
-        if (entry.handlerMethod() == null) {
-            throw new RuntimeException("Configuración corrupta: HandlerMethod es nulo");
-        }
-    }
 
+    }
 
 }
